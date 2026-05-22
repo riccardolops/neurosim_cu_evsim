@@ -57,3 +57,22 @@ evsim_multi(
     float contrast_threshold_neg,
     float contrast_threshold_pos
 );
+
+// ---- DVS-Voltmeter stochastic model (ECCV 2022). Linear-intensity input;
+//      Brownian-motion-with-drift voltage, Inverse-Gaussian/Levy event times. ----
+std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor>
+evsim_voltmeter(
+    const torch::Tensor new_image,
+    uint64_t new_time,
+    uint64_t prev_time,
+    torch::Tensor base_frame,
+    torch::Tensor delta_vd_res,
+    torch::Tensor event_x_buf,
+    torch::Tensor event_y_buf,
+    torch::Tensor event_t_buf,
+    torch::Tensor event_p_buf,
+    double k1, double k2, double k3,
+    double k4, double k5, double k6,
+    uint64_t seed,
+    uint64_t frame_index
+);
