@@ -325,6 +325,115 @@ class TestEdgeCases:
 # =====================================================================
 
 
+class TestMultiMode:
+    """Multi-event mode: >1 event per pixel for large log-contrast changes."""
+
+    def test_invalid_mode_raises(self):
+        with pytest.raises(ValueError, match="mode"):
+            EventSimulator(width=8, height=8, mode="bogus")
+
+    def test_single_just_over_threshold_emits_one(self, device):
+        """A jump barely over one threshold yields exactly one event (parity
+        with single mode)."""
+        import math
+
+        ct = 0.35
+        sim = EventSimulator(
+            width=1,
+            height=1,
+            mode="multi",
+            max_events=64,  # one pixel can emit several events per frame
+            contrast_threshold_pos=ct,
+            contrast_threshold_neg=ct,
+        )
+        v0 = 1.0
+        v1 = math.exp(1.2 * ct)  # 1.2 thresholds -> floor((1.2-1))+1 = 1
+        sim.forward(torch.tensor([[v0]], device=device), 1000)
+        ev = sim.forward(torch.tensor([[v1]], device=device), 2000)
+        assert ev is not None
+        assert ev.x.numel() == 1
+        assert ev.t.item() == 2000  # single event lands on new_time
+
+    def test_large_jump_emits_multiple_equally_spaced(self, device):
+        """A 3.5-threshold jump yields 3 events with equally spaced timestamps,
+        the last landing exactly on new_time."""
+        import math
+
+        ct = 0.35
+        sim = EventSimulator(
+            width=1,
+            height=1,
+            mode="multi",
+            max_events=64,  # one pixel can emit several events per frame
+            contrast_threshold_pos=ct,
+            contrast_threshold_neg=ct,
+        )
+        v0 = 1.0
+        v1 = math.exp(3.5 * ct)  # delta = 3.5 ct -> n = floor((3.5-1)) + 1 = 3
+        sim.forward(torch.tensor([[v0]], device=device), 1000)
+        ev = sim.forward(torch.tensor([[v1]], device=device), 2000)
+
+        assert ev is not None
+        n = ev.x.numel()
+        assert n == 3
+        assert (ev.p == 1).all()  # brightness increase -> positive
+
+        t = ev.t.to(torch.int64).cpu().tolist()
+        gap = 2000 - 1000
+        expected = [1000 + (gap * (k + 1)) // n for k in range(n)]
+        assert t == expected
+        assert t[-1] == 2000  # last event on new_time
+
+    def test_negative_large_jump(self, device):
+        """A large brightness drop yields multiple negative events."""
+        import math
+
+        ct = 0.35
+        sim = EventSimulator(
+            width=1,
+            height=1,
+            mode="multi",
+            max_events=64,  # one pixel can emit several events per frame
+            contrast_threshold_pos=ct,
+            contrast_threshold_neg=ct,
+        )
+        v0 = math.exp(3.5 * ct)
+        v1 = 1.0
+        sim.forward(torch.tensor([[v0]], device=device), 0)
+        ev = sim.forward(torch.tensor([[v1]], device=device), 1000)
+
+        assert ev is not None
+        assert ev.x.numel() == 3
+        assert (ev.p == 0).all()
+        assert ev.t.to(torch.int64).max().item() == 1000
+
+    def test_multi_emits_more_than_single(self, device):
+        """For the same big jump, multi mode emits more events than single."""
+        h, w = 16, 16
+        dark = torch.full((h, w), 0.01, device=device)
+        bright = torch.full((h, w), 10.0, device=device)
+
+        sim_single = EventSimulator(width=w, height=h, mode="single")
+        sim_multi = EventSimulator(
+            width=w, height=h, mode="multi", max_events=w * h * 64
+        )
+
+        sim_single.forward(dark, 0)
+        sim_multi.forward(dark, 0)
+        ev_s = sim_single.forward(bright, 1000)
+        ev_m = sim_multi.forward(bright, 1000)
+
+        assert ev_s.x.numel() == h * w  # single: one per pixel
+        assert ev_m.x.numel() > ev_s.x.numel()  # multi: several per pixel
+
+    def test_no_event_below_threshold(self, device):
+        sim = EventSimulator(width=8, height=8, mode="multi")
+        frame = torch.full((8, 8), 0.5, device=device)
+        sim.forward(frame, 0)
+        ev = sim.forward(frame, 1000)  # identical frame
+        assert ev is None
+
+
 class TestDiagnostics:
     def test_buffer_memory_bytes(self, sim):
         mem = sim.buffer_memory_bytes

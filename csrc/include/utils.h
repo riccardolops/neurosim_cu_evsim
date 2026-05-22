@@ -40,3 +40,20 @@ evsim(
     float contrast_threshold_neg,
     float contrast_threshold_pos
 );
+
+// ---- Multi-event variant: emits N events per pixel for large log-contrast
+//      changes, with timestamps spread equally across [prev_time, new_time]. ----
+std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor>
+evsim_multi(
+    const torch::Tensor new_image,
+    uint64_t new_time,
+    uint64_t prev_time,
+    torch::Tensor intensity_state_ub,
+    torch::Tensor intensity_state_lb,
+    torch::Tensor event_x_buf,
+    torch::Tensor event_y_buf,
+    torch::Tensor event_t_buf,
+    torch::Tensor event_p_buf,
+    float contrast_threshold_neg,
+    float contrast_threshold_pos
+);

@@ -55,3 +55,49 @@ def evsim_cuda(
         contrast_threshold_neg,
         contrast_threshold_pos,
     )
+
+
+def evsim_multi_cuda(
+    new_image: torch.Tensor,
+    new_time: int,
+    prev_time: int,
+    intensity_state_ub: torch.Tensor,
+    intensity_state_lb: torch.Tensor,
+    event_x_buf: torch.Tensor,
+    event_y_buf: torch.Tensor,
+    event_t_buf: torch.Tensor,
+    event_p_buf: torch.Tensor,
+    contrast_threshold_neg: float = 0.35,
+    contrast_threshold_pos: float = 0.35,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    """Multi-event variant of :func:`evsim_cuda`.
+
+    Emits *multiple* events per pixel when the log-intensity change spans more
+    than one contrast threshold, instead of capping at one event per pixel.
+    The ``n`` events generated for a pixel are assigned timestamps spread
+    equally across the inter-frame interval, so that ``t_k = prev_time +
+    (new_time - prev_time) * (k + 1) / n`` for ``k = 0 .. n-1`` — the last
+    event lands exactly on ``new_time``.
+
+    Parameters
+    ----------
+    prev_time : int
+        Timestamp (microseconds) of the *previous* frame; defines the lower end
+        of the interval that emitted events are spread across.  Must satisfy
+        ``prev_time <= new_time``.
+
+    All other parameters match :func:`evsim_cuda`.
+    """
+    return _neurosim_cu_esim_ext.evsim_multi(
+        new_image,
+        new_time,
+        prev_time,
+        intensity_state_ub,
+        intensity_state_lb,
+        event_x_buf,
+        event_y_buf,
+        event_t_buf,
+        event_p_buf,
+        contrast_threshold_neg,
+        contrast_threshold_pos,
+    )

@@ -180,6 +180,65 @@ class TestBackend:
                 0.35,
             )
 
+    def test_multi_emits_multiple_events_per_pixel(self, buffers):
+        """evsim_multi should emit several events for a large log jump."""
+        import math
+
+        from neurosim_cu_esim._backend import evsim_multi_cuda
+
+        h, w = 8, 8
+        dev = "cuda"
+        ct = 0.35
+        v0 = 1.0
+        v1 = math.exp(3.5 * ct)  # -> 3 events per pixel
+        img = torch.full((h, w), v1, device=dev)
+        log0 = math.log(v0)
+        ub = torch.full((h, w), log0 + ct, device=dev)
+        lb = torch.full((h, w), log0 - ct, device=dev)
+
+        x, _y, t, p = evsim_multi_cuda(
+            img,
+            2000,  # new_time
+            1000,  # prev_time
+            ub,
+            lb,
+            buffers["x"],
+            buffers["y"],
+            buffers["t"],
+            buffers["p"],
+            ct,
+            ct,
+        )
+        assert x.numel() == h * w * 3
+        assert (p == 1).all()
+        # timestamps span (1000, 2000], last == new_time
+        assert t.to(torch.int64).max().item() == 2000
+        assert t.to(torch.int64).min().item() > 1000
+
+    def test_multi_rejects_prev_after_new(self, buffers):
+        """prev_time > new_time should be rejected."""
+        from neurosim_cu_esim._backend import evsim_multi_cuda
+
+        h, w = 8, 8
+        dev = "cuda"
+        img = torch.full((h, w), 1.0, device=dev)
+        ub = torch.full((h, w), 0.35, device=dev)
+        lb = torch.full((h, w), -0.35, device=dev)
+        with pytest.raises(RuntimeError, match="prev_time"):
+            evsim_multi_cuda(
+                img,
+                1000,
+                2000,
+                ub,
+                lb,
+                buffers["x"],
+                buffers["y"],
+                buffers["t"],
+                buffers["p"],
+                0.35,
+                0.35,
+            )
+
     def test_double_precision(self, buffers):
         """The kernel should work with float64 images."""
         from neurosim_cu_esim._backend import evsim_cuda

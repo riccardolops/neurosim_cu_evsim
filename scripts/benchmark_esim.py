@@ -270,6 +270,8 @@ def animate_sanity_check(
     dpi: int,
     max_frames: int,
     show: bool,
+    mode: str = "single",
+    max_events_per_pixel: int = 32,
 ) -> None:
     """Create an MP4 sanity-check animation (frame + 20 ms events)."""
     import matplotlib.pyplot as plt
@@ -294,11 +296,14 @@ def animate_sanity_check(
 
     stats = {"bins": 0, "events": 0}
 
+    max_events = width * height * max_events_per_pixel if mode == "multi" else None
     sim = EventSimulator(
         width=width,
         height=height,
         contrast_threshold_neg=contrast_threshold_neg,
         contrast_threshold_pos=contrast_threshold_pos,
+        max_events=max_events,
+        mode=mode,
         device=device,
     )
 
@@ -364,12 +369,19 @@ def run_single_trial(
     device: str,
     gpu_index: int,
     gpu_util_poll_interval_s: float,
+    mode: str = "single",
+    max_events_per_pixel: int = 32,
 ) -> TrialResult:
+    # In "multi" mode a frame step can emit several events per pixel, so the
+    # output buffer must be sized well above W*H to avoid dropping events.
+    max_events = width * height * max_events_per_pixel if mode == "multi" else None
     sim = EventSimulator(
         width=width,
         height=height,
         contrast_threshold_neg=contrast_threshold_neg,
         contrast_threshold_pos=contrast_threshold_pos,
+        max_events=max_events,
+        mode=mode,
         device=device,
     )
 
@@ -462,6 +474,22 @@ def parse_args() -> argparse.Namespace:
         "--height", type=int, default=480, help="Frame height (default: VGA 480)"
     )
     parser.add_argument("--device", type=str, default="cuda", help="Torch CUDA device")
+
+    parser.add_argument(
+        "--mode",
+        type=str,
+        default="single",
+        choices=["single", "multi"],
+        help="Event generation mode: 'single' (<=1 event/pixel/frame, fast "
+        "high-fps path) or 'multi' (many events/pixel for large log-contrast "
+        "changes, low-fps)",
+    )
+    parser.add_argument(
+        "--max-events-per-pixel",
+        type=int,
+        default=32,
+        help="Multi mode only: output buffer is sized W*H*this (default: 32)",
+    )
 
     parser.add_argument(
         "--trials", type=int, default=3, help="Number of throughput trials"
@@ -578,6 +606,13 @@ def main() -> None:
     frame_bytes = args.width * args.height * 4
     approx_gb = (frame_bytes * len(frame_bank)) / (1024**3)
     print(f"Frame bank: {len(frame_bank)} frames, ~{approx_gb:.2f} GiB on GPU")
+    if args.mode == "multi":
+        print(
+            f"Mode: multi (max_events = {args.width * args.height * args.max_events_per_pixel} "
+            f"= W*H*{args.max_events_per_pixel})"
+        )
+    else:
+        print("Mode: single")
 
     if args.sanity_video is not None:
         max_frames = args.sanity_frames if args.sanity_frames > 0 else len(frame_bank)
@@ -601,6 +636,8 @@ def main() -> None:
             dpi=args.sanity_dpi,
             max_frames=max_frames,
             show=args.sanity_show,
+            mode=args.mode,
+            max_events_per_pixel=args.max_events_per_pixel,
         )
 
     trials: list[TrialResult] = []
@@ -618,6 +655,8 @@ def main() -> None:
             device=args.device,
             gpu_index=gpu_index,
             gpu_util_poll_interval_s=args.gpu_util_poll_interval_s,
+            mode=args.mode,
+            max_events_per_pixel=args.max_events_per_pixel,
         )
         trials.append(result)
 

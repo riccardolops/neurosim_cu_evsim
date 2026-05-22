@@ -18,7 +18,7 @@ from dataclasses import dataclass, field
 
 import torch
 
-from neurosim_cu_esim._backend import evsim_cuda
+from neurosim_cu_esim._backend import evsim_cuda, evsim_multi_cuda
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +47,16 @@ class EventSimulator:
     contrast_threshold_neg, contrast_threshold_pos : float
         Contrast thresholds in log-intensity units.
     max_events : int | None
-        Maximum events per call.  Defaults to ``width * height``.
+        Maximum events per call.  Defaults to ``width * height``.  In
+        ``"multi"`` mode a single frame step can emit far more than one event
+        per pixel, so size this for the expected per-frame burst; events beyond
+        the cap are dropped (with a warning).
+    mode : str
+        ``"single"`` (default) emits at most one event per pixel per frame —
+        the fast path intended for high-fps (1000+ fps) inputs.  ``"multi"``
+        emits as many events as the log-contrast change warrants, spreading
+        their timestamps equally across the inter-frame interval; intended for
+        low-fps (e.g. 30 fps) inputs.
     device : str | torch.device
         CUDA device to use.
     """
@@ -57,6 +66,7 @@ class EventSimulator:
     contrast_threshold_neg: float = 0.35
     contrast_threshold_pos: float = 0.35
     max_events: int | None = None
+    mode: str = "single"
     device: str | torch.device = "cuda"
 
     # ---- internal state ----
@@ -70,8 +80,13 @@ class EventSimulator:
     _event_y_buf: torch.Tensor = field(init=False, repr=False)
     _event_t_buf: torch.Tensor = field(init=False, repr=False)
     _event_p_buf: torch.Tensor = field(init=False, repr=False)
+    # Timestamp (microseconds) of the previous frame; defines the lower end of
+    # the interval that "multi"-mode events are spread across.
+    _prev_time: int | None = field(default=None, init=False, repr=False)
 
     def __post_init__(self) -> None:
+        if self.mode not in ("single", "multi"):
+            raise ValueError(f"mode must be 'single' or 'multi', got {self.mode!r}")
         if self.max_events is None:
             self.max_events = self.width * self.height
         self._init_buffers()
@@ -121,6 +136,7 @@ class EventSimulator:
         """Clear internal state and optionally re-initialise from *first_image*."""
         self._intensity_state_ub = None
         self._intensity_state_lb = None
+        self._prev_time = None
         if first_image is not None:
             self.init(first_image)
 
@@ -145,6 +161,7 @@ class EventSimulator:
         """
         if not self.is_initialised:
             self.init(image)
+            self._prev_time = int(timestamp_us)
             return None
 
         image = self._prepare_image(image)
@@ -152,21 +169,50 @@ class EventSimulator:
         assert self._intensity_state_ub is not None
         assert self._intensity_state_lb is not None
 
-        x, y, t, p = evsim_cuda(
-            image,
-            int(timestamp_us),
-            self._intensity_state_ub,
-            self._intensity_state_lb,
-            self._event_x_buf,
-            self._event_y_buf,
-            self._event_t_buf,
-            self._event_p_buf,
-            self.contrast_threshold_neg,
-            self.contrast_threshold_pos,
-        )
+        ts = int(timestamp_us)
+
+        if self.mode == "multi":
+            # First frame after a bare init() (no timestamp) has no interval to
+            # spread across — collapse it to a single instant at this frame.
+            prev = self._prev_time if self._prev_time is not None else ts
+            x, y, t, p = evsim_multi_cuda(
+                image,
+                ts,
+                prev,
+                self._intensity_state_ub,
+                self._intensity_state_lb,
+                self._event_x_buf,
+                self._event_y_buf,
+                self._event_t_buf,
+                self._event_p_buf,
+                self.contrast_threshold_neg,
+                self.contrast_threshold_pos,
+            )
+        else:
+            x, y, t, p = evsim_cuda(
+                image,
+                ts,
+                self._intensity_state_ub,
+                self._intensity_state_lb,
+                self._event_x_buf,
+                self._event_y_buf,
+                self._event_t_buf,
+                self._event_p_buf,
+                self.contrast_threshold_neg,
+                self.contrast_threshold_pos,
+            )
+
+        self._prev_time = ts
 
         if x.numel() == 0:
             return None
+
+        if x.numel() >= self.max_events:
+            logger.warning(
+                "Event buffer saturated at max_events=%d; some events were "
+                "dropped. Increase max_events.",
+                self.max_events,
+            )
 
         return Events(x=x, y=y, t=t, p=p)
 

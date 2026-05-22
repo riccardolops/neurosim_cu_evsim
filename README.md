@@ -100,6 +100,27 @@ for i in range(1, 100):
 
 **For a complete example with a moving texture stimulus, see:** [Benchmark with animation](#benchmarking).
 
+### Multi-event mode
+
+By default the simulator emits **at most one event per pixel per frame**
+(`mode="single"`), which is the right choice for high-fps inputs where each frame step spans at most one contrast threshold.
+
+Set `mode="multi"` to emit **as many events as the
+log-contrast change warrants**, with their timestamps spread *equally* across
+the interval between the previous and current frame (the last event lands
+exactly on the current `timestamp_us`):
+
+```python
+sim = EventSimulator(
+    width=640, height=480,
+    mode="multi",
+    max_events=640 * 480 * 32,   # a frame step can emit many events/pixel
+)
+```
+
+In `"multi"` mode size `max_events` for the expected per-frame burst; events
+beyond the cap are dropped (with a warning).
+
 ### Runtime threshold
 
 ```python
@@ -123,6 +144,7 @@ print(sim.buffer_memory_bytes)    # GPU memory used by output buffers
 | `contrast_threshold_neg` | `float` | `0.35` | Negative contrast threshold (log scale) |
 | `contrast_threshold_pos` | `float` | `0.35` | Positive contrast threshold (log scale) |
 | `max_events` | `int \| None` | `W × H` | Cap on events per frame |
+| `mode` | `str` | `"single"` | `"single"` = ≤1 event/pixel/frame (fast, high-fps); `"multi"` = many events/pixel with timestamps spread across the inter-frame interval (low-fps) |
 | `device` | `str` | `"cuda"` | CUDA device |
 
 ### `EventSimulator.forward(image, timestamp_us) -> Events | None`
