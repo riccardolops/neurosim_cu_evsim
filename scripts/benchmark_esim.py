@@ -24,7 +24,7 @@ from dataclasses import asdict, dataclass
 import torch
 import numpy as np
 
-from neurosim_cu_esim import EventSimulator
+from neurosim_cu_esim import EventSimulator, DVSVoltmeterSimulator
 
 
 @dataclass
@@ -205,13 +205,19 @@ def stream_sanity_frames(
     height: int,
     fps_timestamp: int,
     bin_ms: float,
-    sim: EventSimulator,
+    sim,
     max_frames: int,
+    mode: str = "single",
+    input_scale: float = 1.0,
 ):
     """Yield visualization frames for sanity-check animation.
 
     Yields tuples of:
         (simulated_gray_frame, aggregated_event_rgb, bin_start_us, events_in_bin)
+
+    ``input_scale`` rescales frames before feeding the simulator (the
+    DVS-Voltmeter model expects 0-255 linear intensity); the *displayed* frame
+    stays in the bank's original [0, 1] range.
     """
     bin_us = int(round(bin_ms * 1000.0))
     timestamp_step_us = int(round(1e6 / fps_timestamp))
@@ -224,7 +230,14 @@ def stream_sanity_frames(
     if not frame_bank:
         return
 
-    sim.init(frame_bank[0])
+    def sim_input(frame):
+        return frame if input_scale == 1.0 else frame * input_scale
+
+    # Voltmeter needs prev_time set; init it through forward (frame at t=0).
+    if mode == "voltmeter":
+        sim(sim_input(frame_bank[0]), 0)
+    else:
+        sim.init(frame_bank[0])
     latest_frame = frame_bank[0].detach().cpu().numpy()
 
     for i in range(1, max_frames):
@@ -240,7 +253,7 @@ def stream_sanity_frames(
             current_bin_events = 0
             current_bin_start_us += bin_us
 
-        events = sim(frame, timestamp_us)
+        events = sim(sim_input(frame), timestamp_us)
         if events is not None:
             x = events.x.detach().cpu().numpy().astype(np.int32)
             y = events.y.detach().cpu().numpy().astype(np.int32)
@@ -272,6 +285,8 @@ def animate_sanity_check(
     show: bool,
     mode: str = "single",
     max_events_per_pixel: int = 32,
+    camera_type: str = "DVS346",
+    seed: int = 0,
 ) -> None:
     """Create an MP4 sanity-check animation (frame + 20 ms events)."""
     import matplotlib.pyplot as plt
@@ -296,16 +311,28 @@ def animate_sanity_check(
 
     stats = {"bins": 0, "events": 0}
 
-    max_events = width * height * max_events_per_pixel if mode == "multi" else None
-    sim = EventSimulator(
-        width=width,
-        height=height,
-        contrast_threshold_neg=contrast_threshold_neg,
-        contrast_threshold_pos=contrast_threshold_pos,
-        max_events=max_events,
-        mode=mode,
-        device=device,
-    )
+    if mode == "voltmeter":
+        sim = DVSVoltmeterSimulator(
+            width=width,
+            height=height,
+            camera_type=camera_type,
+            max_events=width * height * max_events_per_pixel,
+            seed=seed,
+            device=device,
+        )
+        input_scale = 255.0  # frame bank is [0,1]; voltmeter wants 0-255
+    else:
+        max_events = width * height * max_events_per_pixel if mode == "multi" else None
+        sim = EventSimulator(
+            width=width,
+            height=height,
+            contrast_threshold_neg=contrast_threshold_neg,
+            contrast_threshold_pos=contrast_threshold_pos,
+            max_events=max_events,
+            mode=mode,
+            device=device,
+        )
+        input_scale = 1.0
 
     def update(payload):
         frame, event_rgb, bin_start_us, events_in_bin = payload
@@ -331,6 +358,8 @@ def animate_sanity_check(
         bin_ms=bin_ms,
         sim=sim,
         max_frames=max_frames,
+        mode=mode,
+        input_scale=input_scale,
     )
 
     ani = animation.FuncAnimation(
@@ -371,25 +400,43 @@ def run_single_trial(
     gpu_util_poll_interval_s: float,
     mode: str = "single",
     max_events_per_pixel: int = 32,
+    camera_type: str = "DVS346",
+    seed: int = 0,
+    leak_scale: float = 1.0,
+    randomize_phase: bool = False,
 ) -> TrialResult:
-    # In "multi" mode a frame step can emit several events per pixel, so the
-    # output buffer must be sized well above W*H to avoid dropping events.
-    max_events = width * height * max_events_per_pixel if mode == "multi" else None
-    sim = EventSimulator(
-        width=width,
-        height=height,
-        contrast_threshold_neg=contrast_threshold_neg,
-        contrast_threshold_pos=contrast_threshold_pos,
-        max_events=max_events,
-        mode=mode,
-        device=device,
-    )
-
     timestamp_step_us = int(round(1e6 / fps_timestamp))
-    ts = 0
 
-    sim.init(frame_bank[0])
-    ts += timestamp_step_us
+    if mode == "voltmeter":
+        # Stochastic DVS-Voltmeter model (linear-intensity input, fp32).
+        sim = DVSVoltmeterSimulator(
+            width=width,
+            height=height,
+            camera_type=camera_type,
+            leak_scale=leak_scale,
+            randomize_phase=randomize_phase,
+            max_events=width * height * max_events_per_pixel,
+            seed=seed,
+            device=device,
+        )
+        # Init via forward (sets prev_time); the init frame sits at t=0.
+        sim(frame_bank[0], 0)
+    else:
+        # In "multi" mode a frame step can emit several events per pixel, so the
+        # output buffer must be sized well above W*H to avoid dropping events.
+        max_events = width * height * max_events_per_pixel if mode == "multi" else None
+        sim = EventSimulator(
+            width=width,
+            height=height,
+            contrast_threshold_neg=contrast_threshold_neg,
+            contrast_threshold_pos=contrast_threshold_pos,
+            max_events=max_events,
+            mode=mode,
+            device=device,
+        )
+        sim.init(frame_bank[0])
+
+    ts = timestamp_step_us
 
     for i in range(warmup_calls):
         sim(frame_bank[i % len(frame_bank)], ts)
@@ -479,16 +526,37 @@ def parse_args() -> argparse.Namespace:
         "--mode",
         type=str,
         default="single",
-        choices=["single", "multi"],
+        choices=["single", "multi", "voltmeter"],
         help="Event generation mode: 'single' (<=1 event/pixel/frame, fast "
-        "high-fps path) or 'multi' (many events/pixel for large log-contrast "
-        "changes, low-fps)",
+        "high-fps path), 'multi' (many events/pixel for large log-contrast "
+        "changes, low-fps), or 'voltmeter' (stochastic DVS-Voltmeter model, "
+        "linear-intensity input)",
     )
     parser.add_argument(
         "--max-events-per-pixel",
         type=int,
         default=32,
-        help="Multi mode only: output buffer is sized W*H*this (default: 32)",
+        help="multi/voltmeter modes: output buffer is sized W*H*this (default: 32)",
+    )
+    parser.add_argument(
+        "--camera-type",
+        type=str,
+        default="DVS346",
+        choices=["DVS346", "DVS240"],
+        help="voltmeter mode: camera preset for k1..k6 (default: DVS346)",
+    )
+    parser.add_argument("--seed", type=int, default=0, help="voltmeter mode: RNG seed")
+    parser.add_argument(
+        "--leak-scale",
+        type=float,
+        default=1.0,
+        help="voltmeter mode: scale leakage drift k4/k5 (1.0=faithful, 0=signal-only)",
+    )
+    parser.add_argument(
+        "--randomize-phase",
+        action="store_true",
+        help="voltmeter mode: random per-pixel initial leakage phase (no "
+        "synchronised background flashing)",
     )
 
     parser.add_argument(
@@ -611,6 +679,12 @@ def main() -> None:
             f"Mode: multi (max_events = {args.width * args.height * args.max_events_per_pixel} "
             f"= W*H*{args.max_events_per_pixel})"
         )
+    elif args.mode == "voltmeter":
+        print(
+            f"Mode: voltmeter (camera={args.camera_type}, seed={args.seed}, "
+            f"leak_scale={args.leak_scale}, randomize_phase={args.randomize_phase}, "
+            f"max_events = W*H*{args.max_events_per_pixel})"
+        )
     else:
         print("Mode: single")
 
@@ -638,7 +712,15 @@ def main() -> None:
             show=args.sanity_show,
             mode=args.mode,
             max_events_per_pixel=args.max_events_per_pixel,
+            camera_type=args.camera_type,
+            seed=args.seed,
         )
+
+    # The DVS-Voltmeter k-params are calibrated to 8-bit linear intensity, but
+    # the frame bank is generated in [0.1, 1.0]; rescale to [0, 255] for it.
+    bench_bank = frame_bank
+    if args.mode == "voltmeter":
+        bench_bank = [f * 255.0 for f in frame_bank]
 
     trials: list[TrialResult] = []
     for i in range(args.trials):
@@ -649,7 +731,7 @@ def main() -> None:
             fps_timestamp=args.fps_timestamp,
             warmup_calls=args.warmup_calls,
             latency_calls=args.latency_calls,
-            frame_bank=frame_bank,
+            frame_bank=bench_bank,
             contrast_threshold_neg=args.contrast_threshold_neg,
             contrast_threshold_pos=args.contrast_threshold_pos,
             device=args.device,
@@ -657,6 +739,10 @@ def main() -> None:
             gpu_util_poll_interval_s=args.gpu_util_poll_interval_s,
             mode=args.mode,
             max_events_per_pixel=args.max_events_per_pixel,
+            camera_type=args.camera_type,
+            seed=args.seed,
+            leak_scale=args.leak_scale,
+            randomize_phase=args.randomize_phase,
         )
         trials.append(result)
 
