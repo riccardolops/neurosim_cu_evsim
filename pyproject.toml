@@ -1,10 +1,10 @@
 [build-system]
-requires = ["setuptools>=68", "wheel"]
+requires = ["setuptools>=69", "wheel", "ninja", "torch>=2.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "neurosim_cu_esim"
-version = "0.1"
+version = "0.1.0"
 description = "CUDA-accelerated frame-differencing event simulator"
 readme = "README.md"
 license = "Apache-2.0"
@@ -31,10 +31,14 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/grasp-lyrl/neurosim"
+Homepage = "https://github.com/grasp-lyrl/neurosim_cu_esim"
+Neurosim = "https://github.com/grasp-lyrl/neurosim"
 Issues = "https://github.com/grasp-lyrl/neurosim_cu_esim/issues"
 
 [project.optional-dependencies]
+test = [
+    "pytest>=7",
+]
 dev = [
     "pytest>=7",
     "ruff>=0.4",

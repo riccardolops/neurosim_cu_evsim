@@ -46,12 +46,18 @@ All five steps execute in a single kernel launch.
 | PyTorch | 2.0 |
 | CUDA toolkit | 11.8 |
 
-PyPI package coming soon!
-
 ## Installation
 
+The CUDA kernel is compiled from source at install time against your installed PyTorch. Make sure `nvcc` is on your `PATH` and compatible with the CUDA version your PyTorch was built against:
+
 ```bash
-# Clone and install
+python -c "import torch; print(torch.version.cuda)"   # torch's CUDA
+nvcc --version                                         # toolkit CUDA
+```
+
+Then install:
+
+```bash
 git clone https://github.com/grasp-lyrl/neurosim_cu_esim.git
 cd neurosim_cu_esim
 pip install .
@@ -59,12 +65,6 @@ pip install .
 # Editable install with dev dependencies (pytest, ruff)
 pip install -e ".[dev]"
 ```
-
-> **Note:** Make sure `nvcc` is on your `PATH` and its version is compatible with the CUDA version that your PyTorch was built against. You can check with:
-> ```bash
-> python -c "import torch; print(torch.version.cuda)"
-> nvcc --version
-> ```
 
 ## Quick start
 

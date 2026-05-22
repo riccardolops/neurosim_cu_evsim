@@ -15,7 +15,7 @@ import glob
 import os
 import os.path as osp
 
-from setuptools import setup
+from setuptools import find_packages, setup
 from torch.utils.cpp_extension import BuildExtension, CUDAExtension
 
 HERE = osp.dirname(osp.abspath(__file__))
@@ -78,6 +78,7 @@ if "CXX" not in os.environ:
     os.environ.setdefault("CXX", "g++")
 
 setup(
+    packages=find_packages(include=["neurosim_cu_esim", "neurosim_cu_esim.*"]),
     ext_modules=[
         CUDAExtension(
             name="_neurosim_cu_esim_ext",
