@@ -156,8 +156,8 @@ __global__ void evsim_voltmeter_kernel(
         const unsigned long long pix = static_cast<unsigned long long>(y) * width + x;
         curand_init(seed, pix, frame_index * VOLT_DRAWS_PER_FRAME, &state);
 
-        float res       = delta_vd_res[y][x];
-        float start_rel = 0.0f;
+        float res         = delta_vd_res[y][x];
+        float start_rel   = 0.0f;
         const float theta = 1.0f;
 
         #pragma unroll 1
