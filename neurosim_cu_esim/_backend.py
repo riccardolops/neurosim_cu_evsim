@@ -101,3 +101,72 @@ def evsim_multi_cuda(
         contrast_threshold_neg,
         contrast_threshold_pos,
     )
+
+
+def evsim_voltmeter_cuda(
+    new_image: torch.Tensor,
+    new_time: int,
+    prev_time: int,
+    base_frame: torch.Tensor,
+    delta_vd_res: torch.Tensor,
+    event_x_buf: torch.Tensor,
+    event_y_buf: torch.Tensor,
+    event_t_buf: torch.Tensor,
+    event_p_buf: torch.Tensor,
+    k1: float,
+    k2: float,
+    k3: float,
+    k4: float,
+    k5: float,
+    k6: float,
+    seed: int,
+    frame_index: int,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    """Call the DVS-Voltmeter stochastic event kernel for one frame step.
+
+    Models each pixel's sensor voltage as a Brownian motion with drift derived
+    from the two frames (paper Eq. 10/11) and emits events at threshold
+    crossings, with timestamps sampled from the Inverse-Gaussian / Levy
+    first-passage-time distribution.
+
+    Parameters
+    ----------
+    new_image : torch.Tensor
+        Grayscale ``(H, W)`` frame on CUDA, **linear intensity** (e.g. 0-255,
+        the scale the ``k`` params are calibrated to). *Not* log-intensity.
+    new_time, prev_time : int
+        Current / previous frame timestamps in microseconds (``new_time >
+        prev_time``).
+    base_frame : torch.Tensor
+        Per-pixel previous intensity ``L0`` state ``(H, W)``; updated in place.
+    delta_vd_res : torch.Tensor
+        Per-pixel residual voltage state ``(H, W)``; updated in place.
+    k1..k6 : float
+        DVS-Voltmeter model parameters (camera-specific calibration).
+    seed, frame_index : int
+        Philox RNG seed and per-frame counter offset (for reproducibility and
+        fresh randomness across frames).
+
+    Returns
+    -------
+    tuple of ``(x, y, t, p)`` slices of the pre-allocated buffers.
+    """
+    return _neurosim_cu_esim_ext.evsim_voltmeter(
+        new_image,
+        new_time,
+        prev_time,
+        base_frame,
+        delta_vd_res,
+        event_x_buf,
+        event_y_buf,
+        event_t_buf,
+        event_p_buf,
+        k1,
+        k2,
+        k3,
+        k4,
+        k5,
+        k6,
+        seed,
+        frame_index,
+    )
