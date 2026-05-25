@@ -20,20 +20,7 @@ Algorithms are implemented as fused CUDA kernels with warp-level aggregation.
     <em>Example event simulation using DVSVoltmeterSimulator on a real video</em>
 </p>
 
----
-
-**Performance on an RTX 4090 for a 640×480 moving texture stimulus:**
-
-| Metric | Value |
-|--------|-------|
-| Calls/sec | 47.23 kHz |
-| Events/call | 18016.82 |
-| Events/sec | 850.01 Mev/s |
-| Forward latency | 21.20 µs |
-| Peak GPU util | 36% |
-
-> **Calls/sec** measures how many frames can be processed per second.
-> **Events/call** measures the total number of events generated per frame. Both quantities are very data specific.
+**Forward latency at 640×480 on an RTX 4090:** `single` ~21 µs · `multi` ~22 µs · `voltmeter` ~25 µs — all **much faster** than the corresponding reference implementations. See [Benchmarking](#benchmarking) for details.
 
 ## Contents
 
@@ -188,7 +175,7 @@ events = sim(frame_0_255_float.cuda(), timestamp_us)
 | `contrast_threshold_neg` | `float` | `0.35` | Negative contrast threshold (log scale) |
 | `contrast_threshold_pos` | `float` | `0.35` | Positive contrast threshold (log scale) |
 | `max_events` | `int \| None` | `W × H` | Cap on events per frame |
-| `mode` | `str` | `"single"` | `"single"` = ≤1 event/pixel/frame (fast, high-fps); `"multi"` = many events/pixel with timestamps spread across the inter-frame interval (low-fps) |
+| `mode` | `str` | `"single"` | `"single"` = ≤1 event/pixel/frame; `"multi"` = many events/pixel with timestamps spread across the inter-frame interval |
 | `device` | `str` | `"cuda"` | CUDA device |
 
 ### `EventSimulator.forward(image, timestamp_us) -> Events | None`
@@ -227,6 +214,14 @@ python3 scripts/benchmark_esim.py --mode voltmeter --randomize-phase  # DVS-Volt
 
 **Reported metrics:** calls/sec (kHz), events/sec (Mev/s), events/call, mean forward latency (CUDA event timing), mean/peak GPU utilisation (`nvidia-smi` polling). Saved to `benchmarks/esim_benchmark_results.json`.
 
+**Throughput on an RTX 4090** (640×480, 1000 fps timestamps, fp32, 3 trials × 1 M forwards):
+
+| mode | calls/s | latency | events/call | events/sec |
+|------|--------:|--------:|------------:|-----------:|
+| `single` — ESIM, ≤1 event/pixel/frame (default) | 47.5 kHz | 21 µs | 18 017 | 856 Mev/s |
+| `multi` — ESIM, many events/pixel (low-fps) | 46.2 kHz | 22 µs | 21 668 | 1 002 Mev/s |
+| `voltmeter` — DVS-Voltmeter stochastic | 39.3 kHz | 25 µs | 18 024 | 709 Mev/s |
+
 **Throughput on an RTX 4070 Laptop** (640×480, 1000 fps timestamps, fp32, 3 trials × 200 k forwards):
 
 | mode | calls/s | latency | events/call | events/sec |
@@ -235,7 +230,7 @@ python3 scripts/benchmark_esim.py --mode voltmeter --randomize-phase  # DVS-Volt
 | `multi` — ESIM, many events/pixel (low-fps) | 33.7 kHz | 30 µs | 21 669 | 729 Mev/s |
 | `voltmeter` — DVS-Voltmeter stochastic | 21.1 kHz | 47 µs | 18 186 | 383 Mev/s |
 
-Voltmeter is ~1.7× the latency of ESIM (per-pixel RNG + IG/Lévy sampling) but still ~21 kHz at VGA — far above the reference PyTorch implementation (~84 Hz).
+Voltmeter is ~1.2–1.7× the latency of ESIM (per-pixel RNG + IG/Lévy sampling) but still tens of kHz at VGA — far above the reference PyTorch implementation (~84 Hz GPU-patched, ~31 Hz CPU).
 
 ### **Sanity animation** (frame + aggregated events MP4):
 

@@ -7,7 +7,7 @@ name = "neurosim_cu_esim"
 version = "0.1.0"
 description = "CUDA-accelerated frame-differencing event simulator"
 readme = "README.md"
-license = "Apache-2.0"
+license = {file = "LICENSE"}
 requires-python = ">=3.9"
 authors = [
     {name = "Richeek Das", email = "richeek@seas.upenn.edu"},
