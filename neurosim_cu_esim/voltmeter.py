@@ -76,6 +76,12 @@ class DVSVoltmeterSimulator:
         desynchronised sparkle), as a real sensor's pixels would be.  Strongly
         recommended for realistic stationary backgrounds; default ``False`` to
         match the reference.
+    input_normalized : bool
+        If ``True``, frames are assumed to be in ``[0, 1]`` and are multiplied
+        by 255 internally (the ``k`` params are calibrated to the 0-255 scale).
+        Lets the same ``[0, 1]`` tensor be fed to either ``EventSimulator`` or
+        ``DVSVoltmeterSimulator`` without rescaling at the call site. Default
+        ``False`` (expects 0-255 directly).
     max_events : int | None
         Cap on events per call.  A frame step can emit many events per pixel, so
         this defaults to ``width * height * 16``; events beyond it are dropped
@@ -93,6 +99,7 @@ class DVSVoltmeterSimulator:
     k: list[float] | None = None
     leak_scale: float = 1.0
     randomize_phase: bool = False
+    input_normalized: bool = False
     max_events: int | None = None
     seed: int = 0
     device: str | torch.device = "cuda"
@@ -252,4 +259,7 @@ class DVSVoltmeterSimulator:
         # The Voltmeter kernel is float32-only; downcast doubles too.
         if image.dtype != torch.float32:
             image = image.float()
+        # k-params are calibrated to 0-255; scale up if caller passes [0, 1].
+        if self.input_normalized:
+            image = image * 255.0
         return image.contiguous()
