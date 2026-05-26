@@ -1,5 +1,7 @@
 [build-system]
-requires = ["setuptools>=69", "wheel", "ninja", "torch>=2.0"]
+# torch upper-bound: 2.12 introduced a memory-leak regression in C++ extension
+# Tensor-argument handling that leaks ~1 input-tensor per kernel call.
+requires = ["setuptools>=69", "wheel", "ninja", "torch>=2.0,<2.12"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -27,7 +29,9 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Image Processing",
 ]
 dependencies = [
-    "torch>=2.0",
+    # See build-system note: torch 2.12 leaks per-call input tensors from the
+    # C++ extension.
+    "torch>=2.0,<2.12",
 ]
 
 [project.urls]

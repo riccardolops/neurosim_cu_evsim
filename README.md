@@ -89,7 +89,7 @@ pip install -e ".[dev]"
 
 ## Quick start
 
-> **Input format.** All simulators take **linear-intensity** frames, positive values. `EventSimulator` is scale-invariant — any positive range works (`[0, 1]`, `[0, 255]`, ...); the kernel applies `log()` internally. `DVSVoltmeterSimulator` requires **0–255** specifically, since its params are calibrated to that scale.
+> **Input format.** All simulators take **linear-intensity** frames, positive values. `EventSimulator` is scale-invariant — any positive range works (`[0, 1]`, `[0, 255]`, ...); the kernel applies `log()` internally. `DVSVoltmeterSimulator` expects **0–255** natively (its `k` params are calibrated to that scale), or pass `input_normalized=True` to feed it `[0, 1]` directly.
 
 ```python
 import torch
