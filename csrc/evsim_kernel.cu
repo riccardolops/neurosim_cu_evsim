@@ -126,45 +126,59 @@ __global__ void evsim_multi_kernel(
     // still take part in the warp-wide shuffles below (contributing n = 0).
     if (x < width && y < height) {
         const scalar_t cur_log = log(new_image[y][x]);
-        const scalar_t ub      = intensity_state_ub[y][x];
-        const scalar_t lb      = intensity_state_lb[y][x];
+        const scalar_t ub_raw  = intensity_state_ub[y][x];
+        const scalar_t lb_raw  = intensity_state_lb[y][x];
 
-        if (cur_log > ub) {
-            // Crossings above the current upper bound (always >= 1 here).
-            pos_event = true;
-            n = static_cast<int32_t>(
-                    floorf(static_cast<float>(cur_log - ub) / contrast_threshold_pos)) + 1;
-            if (n > static_cast<int32_t>(max_events))
-                n = static_cast<int32_t>(max_events);
-
-            // Discrete-reference update: advance the bounds by exactly n
-            // thresholds so the sub-threshold residual is preserved for the
-            // next frame (ub_new = ub + n*ct_pos; lb tracks the same ref).
-            const scalar_t new_ub =
-                ub + static_cast<scalar_t>(n) * static_cast<scalar_t>(contrast_threshold_pos);
-            intensity_state_ub[y][x] = new_ub;
-            intensity_state_lb[y][x] = new_ub
-                - static_cast<scalar_t>(contrast_threshold_pos)
-                - static_cast<scalar_t>(contrast_threshold_neg);
-        } else if (cur_log < lb) {
-            pos_event = false;
-            n = static_cast<int32_t>(
-                    floorf(static_cast<float>(lb - cur_log) / contrast_threshold_neg)) + 1;
-            if (n > static_cast<int32_t>(max_events))
-                n = static_cast<int32_t>(max_events);
-
-            const scalar_t new_lb =
-                lb - static_cast<scalar_t>(n) * static_cast<scalar_t>(contrast_threshold_neg);
-            intensity_state_lb[y][x] = new_lb;
-            intensity_state_ub[y][x] = new_lb
-                + static_cast<scalar_t>(contrast_threshold_neg)
-                + static_cast<scalar_t>(contrast_threshold_pos);
+        // Degenerate input (pixel = 0 -> cur_log = -inf): skip this pixel.
+        // No events, no state update — self-heals on the next finite frame.
+        if (!isfinite(cur_log)) {
+            n = 0;
         } else {
-            // No event: tighten bounds toward current value (as in single mode).
-            intensity_state_ub[y][x] =
-                min(ub, cur_log + static_cast<scalar_t>(contrast_threshold_pos));
-            intensity_state_lb[y][x] =
-                max(lb, cur_log - static_cast<scalar_t>(contrast_threshold_neg));
+            // Substitute stale -inf bounds (carry-over from a prior log(0) frame
+            // or from init() on a frame with zeros) with finite recovery values.
+            // After this, diff = cur_log - ub / lb - cur_log is guaranteed finite,
+            // so the floorf -> int32 cast can't blow up and corrupt the warp sum.
+            const scalar_t ub = isfinite(ub_raw) ? ub_raw
+                : cur_log + static_cast<scalar_t>(contrast_threshold_pos);
+            const scalar_t lb = isfinite(lb_raw) ? lb_raw
+                : cur_log - static_cast<scalar_t>(contrast_threshold_neg);
+
+            if (cur_log > ub) {
+                // Crossings above the current upper bound (always >= 1 here).
+                pos_event = true;
+                n = static_cast<int32_t>(
+                        floorf(static_cast<float>(cur_log - ub) / contrast_threshold_pos)) + 1;
+                if (n > static_cast<int32_t>(max_events))
+                    n = static_cast<int32_t>(max_events);
+
+                // Discrete-reference update: advance bounds by n*ct so the
+                // sub-threshold residual is preserved for the next frame.
+                const scalar_t new_ub =
+                    ub + static_cast<scalar_t>(n) * static_cast<scalar_t>(contrast_threshold_pos);
+                intensity_state_ub[y][x] = new_ub;
+                intensity_state_lb[y][x] = new_ub
+                    - static_cast<scalar_t>(contrast_threshold_pos)
+                    - static_cast<scalar_t>(contrast_threshold_neg);
+            } else if (cur_log < lb) {
+                pos_event = false;
+                n = static_cast<int32_t>(
+                        floorf(static_cast<float>(lb - cur_log) / contrast_threshold_neg)) + 1;
+                if (n > static_cast<int32_t>(max_events))
+                    n = static_cast<int32_t>(max_events);
+
+                const scalar_t new_lb =
+                    lb - static_cast<scalar_t>(n) * static_cast<scalar_t>(contrast_threshold_neg);
+                intensity_state_lb[y][x] = new_lb;
+                intensity_state_ub[y][x] = new_lb
+                    + static_cast<scalar_t>(contrast_threshold_neg)
+                    + static_cast<scalar_t>(contrast_threshold_pos);
+            } else {
+                // No event: tighten bounds toward current value.
+                intensity_state_ub[y][x] =
+                    min(ub, cur_log + static_cast<scalar_t>(contrast_threshold_pos));
+                intensity_state_lb[y][x] =
+                    max(lb, cur_log - static_cast<scalar_t>(contrast_threshold_neg));
+            }
         }
     }
 
