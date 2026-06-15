@@ -76,3 +76,28 @@ evsim_voltmeter(
     uint64_t seed,
     uint64_t frame_index
 );
+
+// ---- Graca & Delbruck (2025) physically-realistic large-signal pixel model.
+//      Linear-intensity input -> per-pixel analog front-end (2nd-order PR +
+//      1st-order SF) advanced in sub-steps, optional shot noise, v2e events. ----
+std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor>
+evsim_graca(
+    const torch::Tensor new_image,
+    uint64_t new_time,
+    uint64_t prev_time,
+    torch::Tensor state,
+    torch::Tensor event_x_buf,
+    torch::Tensor event_y_buf,
+    torch::Tensor event_t_buf,
+    torch::Tensor event_p_buf,
+    double Cpd, double Cfb, double Cpr, double Csf,
+    double Ipr, double Isf,
+    double kappa_fb, double kappa_sf, double VA, double UT,
+    double ipd_max, double ipd_min, double intensity_max,
+    double thr_on, double thr_off, double refractory_us,
+    double dt_us,
+    int64_t add_noise,
+    int64_t stochastic_events,
+    uint64_t seed,
+    uint64_t frame_index
+);
