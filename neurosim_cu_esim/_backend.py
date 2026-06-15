@@ -170,3 +170,107 @@ def evsim_voltmeter_cuda(
         seed,
         frame_index,
     )
+
+
+def evsim_graca_cuda(
+    new_image: torch.Tensor,
+    new_time: int,
+    prev_time: int,
+    state: torch.Tensor,
+    event_x_buf: torch.Tensor,
+    event_y_buf: torch.Tensor,
+    event_t_buf: torch.Tensor,
+    event_p_buf: torch.Tensor,
+    Cpd: float,
+    Cfb: float,
+    Cpr: float,
+    Csf: float,
+    Ipr: float,
+    Isf: float,
+    kappa_fb: float,
+    kappa_sf: float,
+    VA: float,
+    UT: float,
+    ipd_max: float,
+    ipd_min: float,
+    intensity_max: float,
+    thr_on: float,
+    thr_off: float,
+    refractory_us: float,
+    dt_us: float,
+    add_noise: int,
+    stochastic_events: int,
+    seed: int,
+    frame_index: int,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    """Call the Graca & Delbruck large-signal physical pixel kernel for one step.
+
+    Each pixel runs a 2nd-order photoreceptor + 1st-order source-follower
+    difference equation, advanced in ``dt_us`` sub-steps across
+    ``[prev_time, new_time]``, with operating-point-dependent coefficients,
+    optional shot noise, and a v2e fixed-threshold change detector.
+
+    Parameters
+    ----------
+    new_image : torch.Tensor
+        Grayscale ``(H, W)`` frame on CUDA, **linear intensity** (mapped to a
+        per-pixel photocurrent ``Ipd = ipd_max * clamp(L/intensity_max, eps, 1)``).
+    state : torch.Tensor
+        Packed per-pixel analog state ``(GRACA_NSTATE, H, W)`` float32; updated
+        in place. ``GRACA_NSTATE == 24``.
+    Cpd, Cfb, Cpr, Csf : float
+        Photoreceptor / source-follower capacitances (F).
+    Ipr, Isf : float
+        Photoreceptor and source-follower bias currents (A).
+    kappa_fb, kappa_sf, VA, UT : float
+        Subthreshold slopes, Early voltage (V), thermal voltage (V).
+    ipd_max, intensity_max : float
+        Intensity-to-photocurrent mapping (max photocurrent A; input full-scale).
+    thr_on, thr_off : float
+        Event thresholds at Vsf (volts).
+    refractory_us, dt_us : float
+        Refractory period and internal sub-step (microseconds).
+    add_noise : int
+        ``1`` to add shot noise, ``0`` for the deterministic signal model.
+    stochastic_events : int
+        ``1`` to enable stochastic first-passage-time event generation (noise
+        crossings between sub-steps; requires ``add_noise=1``), ``0`` for the
+        plain v2e fixed-threshold detector.
+    seed, frame_index : int
+        Philox RNG seed and per-frame counter offset.
+
+    Returns
+    -------
+    tuple of ``(x, y, t, p)`` slices of the pre-allocated buffers.
+    """
+    return _neurosim_cu_esim_ext.evsim_graca(
+        new_image,
+        new_time,
+        prev_time,
+        state,
+        event_x_buf,
+        event_y_buf,
+        event_t_buf,
+        event_p_buf,
+        Cpd,
+        Cfb,
+        Cpr,
+        Csf,
+        Ipr,
+        Isf,
+        kappa_fb,
+        kappa_sf,
+        VA,
+        UT,
+        ipd_max,
+        ipd_min,
+        intensity_max,
+        thr_on,
+        thr_off,
+        refractory_us,
+        dt_us,
+        add_noise,
+        stochastic_events,
+        seed,
+        frame_index,
+    )
