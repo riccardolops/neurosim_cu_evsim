@@ -118,7 +118,7 @@ def simulate_full(params, Ts=10e-6, T_end=0.08, add_noise=False, seed=0, warmup=
 
 if __name__ == "__main__":
     import scipy.io as sio
-    P = (83.65e-15, 1.0e-15, 10e-15, 581e-15, 3e-9, 10e-12)
+    P = (71.54e-15, 0.87e-15, 23.72e-15, 581e-15, 3e-9, 10e-12)
     d = sio.loadmat('paper_data_all.mat')
     r = simulate_full(P, add_noise=True)
     

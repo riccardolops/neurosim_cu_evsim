@@ -106,9 +106,9 @@ class GracaDVSSimulator:
     width: int
     height: int
     # --- physical model parameters (SI) — anchored fit defaults ---
-    Cpd: float = 83.65e-15
+    Cpd: float = 71.54e-15
     Cfb: float = 1.00e-15
-    Cpr: float = 10.0e-15
+    Cpr: float = 23.72e-15
     Csf: float = 581.0e-15
     Ipr: float = 3.0e-9
     Isf: float = 10.0e-12
