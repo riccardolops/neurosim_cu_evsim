@@ -88,7 +88,7 @@ def theoretical_psd(params, Ipd_op, f):
 if __name__ == "__main__":
     import matplotlib; matplotlib.use('Agg'); import matplotlib.pyplot as plt
     # physically-anchored fitted params (on the Cpd-Cfb valley)
-    params = (83e-15, 1.0e-15, 10e-15, 583e-15, 3e-9, 10e-12)
+    params = (71.54e-15, 0.87e-15, 23.72e-15, 583e-15, 3e-9, 10e-12)
     fig, axes = plt.subplots(1, 2, figsize=(13, 5))
     for Ipd_op, col in [(10e-15, 'C0'), (1e-12, 'C1')]:
         n = gen_noise(params, Ipd_op, ts=2e-6, T=4.0, seed=1)

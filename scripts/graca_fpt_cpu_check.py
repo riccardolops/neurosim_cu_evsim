@@ -119,7 +119,7 @@ def run(intensity, dt_us, n_frames, frame_us, theta, p, rng, stochastic, add_noi
 
 
 if __name__ == "__main__":
-    p = dict(Cpd=83.65e-15, Cfb=1.0e-15, Cpr=10e-15, Csf=581e-15, Ipr=3e-9, Isf=10e-12,
+    p = dict(Cpd=71.54e-15, Cfb=0.87e-15, Cpr=23.72e-15, Csf=581e-15, Ipr=3e-9, Isf=10e-12,
              kappa_fb=0.7, kappa_sf=0.7, VA=3.0, UT=25.8e-3,
              ipd_max=1e-12, ipd_min=10e-15, input_max=1.0, refractory_us=1.0)
     intensity = 1e-2                     # -> Ipd ~ 10 fA (with ipd_min floor)
