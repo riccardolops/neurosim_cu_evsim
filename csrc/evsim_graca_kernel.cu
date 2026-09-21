@@ -209,9 +209,19 @@ __global__ void evsim_graca_kernel(
         float tse   = state[S_TSE][y][x];
         float xpr1  = state[S_XPR1][y][x];   // PR input history (persisted)
         float xpr2  = state[S_XPR2][y][x];
+        
+        // FIX: The Zm(s) filter coefficients scale by ~ 1/Ipd_op.
+        // If xpr1, xpr2 carry over from a bright frame into a dark frame,
+        // they get multiplied by the huge dark gain, causing massive false ON transients.
+        // We scale the history by the ratio of operating points to compensate.
+        const float op_scale = (float)(Ipd1 / Ipd0);
+        xpr1 *= op_scale;
+        xpr2 *= op_scale;
+
         float zmx1=0,zmx2=0,zmy1=0,zmy2=0,zox1=0,zox2=0,zoy1=0,zoy2=0,zsx1=0,zsy1=0;
         if (add_noise) {
-            zmx1=state[S_ZMX1][y][x]; zmx2=state[S_ZMX2][y][x];
+            zmx1=state[S_ZMX1][y][x] * op_scale; // Also scale Zm noise history
+            zmx2=state[S_ZMX2][y][x] * op_scale;
             zmy1=state[S_ZMY1][y][x]; zmy2=state[S_ZMY2][y][x];
             zox1=state[S_ZOX1][y][x]; zox2=state[S_ZOX2][y][x];
             zoy1=state[S_ZOY1][y][x]; zoy2=state[S_ZOY2][y][x];
