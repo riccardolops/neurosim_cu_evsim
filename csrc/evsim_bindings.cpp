@@ -72,7 +72,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
         py::arg("Cpd"), py::arg("Cfb"), py::arg("Cpr"), py::arg("Csf"),
         py::arg("Ipr"), py::arg("Isf"),
         py::arg("kappa_fb"), py::arg("kappa_sf"), py::arg("VA"), py::arg("UT"),
-        py::arg("ipd_max"), py::arg("ipd_min"), py::arg("intensity_max"),
+        py::arg("full_well_saturation_threshold"), py::arg("dark_current"),
         py::arg("thr_on"), py::arg("thr_off"), py::arg("refractory_us"),
         py::arg("add_noise"),
         py::arg("stochastic_events"),

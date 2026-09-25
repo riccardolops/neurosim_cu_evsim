@@ -7,13 +7,13 @@
 //   * NO sub-step loop: the kernel executes the difference equations (DF-I)
 //     exactly once per call using dt = new_time - prev_time.
 //   * NO impulse injection: the photoreceptor input is the continuously
-//     computed target voltage Vpr_target = (UT/kappa_fb) * log(I_pd/ipd_min).
+//     computed target voltage Vpr_target = (UT/kappa_fb) * log(I_pd/dark_current).
 //   * NO S_L0 state: the kernel does not track previous-frame intensity.
 //     Small-signal parameters (gm_fb, gs_fb) are recomputed from the
 //     instantaneous I_pd at each call (LPV linearization).
 //
 // Signal flow per pixel per call:
-//   1. Map linear intensity -> photocurrent I_pd (clamped to [ipd_min, ipd_max])
+//   1. Map linear intensity -> photocurrent I_pd (clamped to [dark_current, full_well_saturation_threshold])
 //   2. Compute operating-point-dependent filter coefficients (bilinear transform)
 //   3. Photoreceptor Zm: 2nd-order DF-I filter on Vpr_target -> Vpr_signal
 //   4. Optional shot noise: Zm-filtered PD noise + Zout-filtered PR noise
@@ -104,8 +104,8 @@ __global__ void evsim_graca_kernel(
     const double Ipr, const double Isf,
     const double kappa_fb, const double kappa_sf, const double VA, const double UT,
     // intensity -> photocurrent mapping:
-    //   Ipd = clamp(ipd_max * L/intensity_max, ipd_min, ipd_max)
-    const double ipd_max, const double ipd_min, const double intensity_max,
+    //   Ipd = clamp(L, dark_current, full_well_saturation_threshold)
+    const double full_well_saturation_threshold, const double dark_current,
     // change detector
     const double thr_on, const double thr_off, const double refractory_us,
     const int add_noise,
@@ -130,9 +130,9 @@ __global__ void evsim_graca_kernel(
         const double Ts      = dt_us_d * 1e-6;                    // s
         const double K0      = 2.0 / Ts;                          // bilinear 2/Ts
 
-        // ---- map intensity to photocurrent ----
-        const double I_pd = fmin(fmax(ipd_max * ((double)new_image[y][x] / intensity_max),
-                                      ipd_min), ipd_max);
+        // ---- clamp photocurrent ----
+        const double I_pd = fmin(fmax((double)new_image[y][x],
+                                      dark_current), full_well_saturation_threshold);
 
         // ---- small-signal parameters at the operating point ----
         // These are recomputed from the instantaneous I_pd each call (LPV).
@@ -401,7 +401,7 @@ evsim_graca(
     const double Cpd, const double Cfb, const double Cpr, const double Csf,
     const double Ipr, const double Isf,
     const double kappa_fb, const double kappa_sf, const double VA, const double UT,
-    const double ipd_max, const double ipd_min, const double intensity_max,
+    const double full_well_saturation_threshold, const double dark_current,
     const double thr_on, const double thr_off, const double refractory_us,
     const int64_t add_noise,
     const int64_t stochastic_events,
@@ -443,7 +443,7 @@ evsim_graca(
             event_count.data_ptr<int32_t>(),
             Cpd, Cfb, Cpr, Csf, Ipr, Isf,
             kappa_fb, kappa_sf, VA, UT,
-            ipd_max, ipd_min, intensity_max,
+            full_well_saturation_threshold, dark_current,
             thr_on, thr_off, refractory_us,
             static_cast<int>(add_noise),
             static_cast<int>(stochastic_events),

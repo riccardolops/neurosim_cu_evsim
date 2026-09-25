@@ -16,7 +16,7 @@ linearization). Between frames the difference equations are advanced in fixed
 shot noise is injected per the thesis noise model (Eq. 2.45-2.47).
 
 Input is **linear intensity**, mapped to a per-pixel photocurrent
-``Ipd = ipd_max * clamp(L / input_max, eps, 1)`` (the operating point that sets
+``Ipd = clamp(L, dark_current, full_well_saturation_threshold)`` (the operating point that sets
 both the log gain and the time constants).
 
 Default parameters are the project's anchored fit to the paper's Fig. 5 pulse
@@ -68,15 +68,11 @@ class GracaDVSSimulator:
         Photoreceptor and source-follower bias currents (amps).
     kappa_fb, kappa_sf, VA, UT : float
         Subthreshold slope factors, Early voltage (V), thermal voltage (V).
-    ipd_max : float
+    full_well_saturation_threshold : float
         Photocurrent at full-scale intensity (amps). With the default
-        ``1e-12`` the operating point spans ~ipd_min .. ipd_max.
-    ipd_min : float
-        Photocurrent floor (amps): ``Ipd = clamp(ipd_max*L/input_max, ipd_min,
-        ipd_max)``. Avoids ``log(0)`` and sets the dark-current operating point.
-    input_max : float
-        Full-scale of the input intensity (``1.0`` for ``[0, 1]`` frames,
-        ``255.0`` for 8-bit). Used only for the intensity->current mapping.
+        ``1e-12`` the operating point spans ~dark_current .. full_well_saturation_threshold.
+    dark_current : float
+        Photocurrent floor (amps): ``Ipd = clamp(L, dark_current, full_well_saturation_threshold)``. Avoids ``log(0)`` and sets the dark-current operating point.
     contrast_threshold : float
         Event threshold in e-folds of photocurrent (temporal contrast). Mapped
         to a Vsf voltage threshold ``TC * kappa_sf * UT / kappa_fb``.
@@ -114,9 +110,8 @@ class GracaDVSSimulator:
     VA: float = 3.0
     UT: float = 25.8e-3
     # --- intensity -> photocurrent mapping ---
-    ipd_max: float = 1.0e-12
-    ipd_min: float = 1.0e-15
-    input_max: float = 1.0
+    full_well_saturation_threshold: float = 1.0e-12
+    dark_current: float = 1.0e-15
     # --- change detector ---
     contrast_threshold: float = 0.3
     contrast_threshold_off: float | None = None
@@ -175,7 +170,7 @@ class GracaDVSSimulator:
             (GRACA_NSTATE, h, w), dtype=torch.float32, device=first_image.device
         )
         if not self.use_first_frame_as_base:
-            self._state[_S_IPD_BASE] = self.ipd_min
+            self._state[_S_IPD_BASE] = self.dark_current
 
     @property
     def is_initialised(self) -> bool:
@@ -226,7 +221,7 @@ class GracaDVSSimulator:
             float(self.Cpd), float(self.Cfb), float(self.Cpr), float(self.Csf),
             float(self.Ipr), float(self.Isf),
             float(self.kappa_fb), float(self.kappa_sf), float(self.VA), float(self.UT),
-            float(self.ipd_max), float(self.ipd_min), float(self.input_max),
+            float(self.full_well_saturation_threshold), float(self.dark_current),
             float(self.thr_on), float(self.thr_off), float(self.refractory_us),
             int(bool(self.add_noise)),
             int(bool(self.stochastic_events)),
