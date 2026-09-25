@@ -74,7 +74,6 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
         py::arg("kappa_fb"), py::arg("kappa_sf"), py::arg("VA"), py::arg("UT"),
         py::arg("ipd_max"), py::arg("ipd_min"), py::arg("intensity_max"),
         py::arg("thr_on"), py::arg("thr_off"), py::arg("refractory_us"),
-        py::arg("dt_us"),
         py::arg("add_noise"),
         py::arg("stochastic_events"),
         py::arg("seed"),

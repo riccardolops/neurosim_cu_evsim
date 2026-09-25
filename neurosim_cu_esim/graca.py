@@ -34,8 +34,7 @@ from neurosim_cu_esim._backend import evsim_graca_cuda
 logger = logging.getLogger(__name__)
 
 # Must match the GracaState enum / GRACA_NSTATE in csrc/evsim_graca_kernel.cu.
-GRACA_NSTATE = 24
-_S_L0 = 7  # index of the previous-frame-intensity slot in the packed state
+GRACA_NSTATE = 22
 
 
 class Events(NamedTuple):
@@ -84,9 +83,6 @@ class GracaDVSSimulator:
         Optional separate OFF threshold (defaults to ``contrast_threshold``).
     refractory_us : float
         Per-pixel refractory period (microseconds).
-    dt_us : float
-        Internal sub-step (microseconds). Smaller = more accurate dynamics /
-        event timing but more compute (``n_sub = interval / dt_us`` per frame).
     add_noise : bool
         Inject shot noise (thesis Eq. 2.45-2.47). Default ``False``.
     stochastic_events : bool
@@ -124,7 +120,6 @@ class GracaDVSSimulator:
     contrast_threshold: float = 0.3
     contrast_threshold_off: float | None = None
     refractory_us: float = 100.0
-    dt_us: float = 10.0
     # --- noise / misc ---
     add_noise: bool = False
     stochastic_events: bool = False
@@ -144,8 +139,6 @@ class GracaDVSSimulator:
     def __post_init__(self) -> None:
         if self.max_events is None:
             self.max_events = self.width * self.height * 16
-        if self.dt_us <= 0:
-            raise ValueError("dt_us must be > 0")
         self._init_buffers()
 
     # ------------------------------------------------------------------
@@ -178,8 +171,6 @@ class GracaDVSSimulator:
         self._state = torch.zeros(
             (GRACA_NSTATE, h, w), dtype=torch.float32, device=first_image.device
         )
-        # seed the operating-point memory with the first frame intensity
-        self._state[_S_L0] = first_image
 
     @property
     def is_initialised(self) -> bool:
@@ -232,7 +223,6 @@ class GracaDVSSimulator:
             float(self.kappa_fb), float(self.kappa_sf), float(self.VA), float(self.UT),
             float(self.ipd_max), float(self.ipd_min), float(self.input_max),
             float(self.thr_on), float(self.thr_off), float(self.refractory_us),
-            float(self.dt_us),
             int(bool(self.add_noise)),
             int(bool(self.stochastic_events)),
             int(self.seed),
