@@ -38,7 +38,7 @@ def main():
     sim = GracaDVSSimulator(
         width=args.width, height=args.height,
         add_noise=args.noise, dt_us=args.dt_us,
-        input_max=1.0, ipd_max=1e-12, ipd_min=1e-15,
+        input_max=1.0, full_well_saturation_threshold=1e-12, dark_current=1e-15,
         contrast_threshold=0.3, refractory_us=100.0,
         max_events=args.width * args.height * 16, seed=0, device=dev,
     )

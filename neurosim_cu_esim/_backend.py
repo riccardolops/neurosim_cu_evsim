@@ -191,9 +191,8 @@ def evsim_graca_cuda(
     kappa_sf: float,
     VA: float,
     UT: float,
-    ipd_max: float,
-    ipd_min: float,
-    intensity_max: float,
+    full_well_saturation_threshold: float,
+    dark_current: float,
     thr_on: float,
     thr_off: float,
     refractory_us: float,
@@ -214,7 +213,7 @@ def evsim_graca_cuda(
     ----------
     new_image : torch.Tensor
         Grayscale ``(H, W)`` frame on CUDA, **linear intensity** (mapped to a
-        per-pixel photocurrent ``Ipd = ipd_max * clamp(L/intensity_max, eps, 1)``).
+        per-pixel photocurrent ``Ipd = clamp(L, eps, full_well_saturation_threshold)``).
     state : torch.Tensor
         Packed per-pixel analog state ``(GRACA_NSTATE, H, W)`` float32; updated
         in place. ``GRACA_NSTATE == 24``.
@@ -224,7 +223,7 @@ def evsim_graca_cuda(
         Photoreceptor and source-follower bias currents (A).
     kappa_fb, kappa_sf, VA, UT : float
         Subthreshold slopes, Early voltage (V), thermal voltage (V).
-    ipd_max, intensity_max : float
+    full_well_saturation_threshold : float
         Intensity-to-photocurrent mapping (max photocurrent A; input full-scale).
     thr_on, thr_off : float
         Event thresholds at Vsf (volts).
@@ -262,9 +261,8 @@ def evsim_graca_cuda(
         kappa_sf,
         VA,
         UT,
-        ipd_max,
-        ipd_min,
-        intensity_max,
+        full_well_saturation_threshold,
+        dark_current,
         thr_on,
         thr_off,
         refractory_us,

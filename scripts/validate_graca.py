@@ -21,14 +21,14 @@ ref = np.load(ref_path)
 t, Ipd, Vpr_ref, Vsf_ref = ref["t"], ref["Ipd"], ref["Vpr"], ref["Vsf"]
 N = len(t)
 
-IPD_MAX = 1e-12
-L = Ipd / IPD_MAX                       # 10 fA -> 0.01,  1 pA -> 1.0
+FULL_WELL_SATURATION_THRESHOLD = 1e-12
+L = Ipd / FULL_WELL_SATURATION_THRESHOLD                       # 10 fA -> 0.01,  1 pA -> 1.0
 
 H, W = 4, 4
 sim = GracaDVSSimulator(
     width=W, height=H,
     Cpd=71.54e-15, Cfb=0.87e-15, Cpr=23.72e-15, Csf=581e-15, Ipr=3e-9, Isf=10e-12,
-    ipd_max=IPD_MAX, ipd_min=1e-15, input_max=1.0,
+    full_well_saturation_threshold=FULL_WELL_SATURATION_THRESHOLD, dark_current=1e-15, input_max=1.0,
     contrast_threshold=0.3, refractory_us=100.0, dt_us=10.0,
     add_noise=True, device="cuda",
 )
