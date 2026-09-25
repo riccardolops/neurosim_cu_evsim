@@ -56,6 +56,7 @@ enum GracaState {
     S_VSFN,         // noise-only SF output (to isolate vsf_noise for FPT)
     S_VPRSFN,       // noise-only SF input history
     S_MSI,          // calibrated mean-square Vsf-noise increment <(d noise)^2>
+    S_IPD_BASE,     // first frame photocurrent for log normalization
     GRACA_NSTATE
 };
 
@@ -217,8 +218,14 @@ __global__ void evsim_graca_kernel(
         }
         const float vsf_prev = Vsf;        // previous call's Vsf (for event detection)
 
+        // ---- Initialize Ipd_base if it's 0 (first frame) ----
+        if (state[S_IPD_BASE][y][x] == 0.0f) {
+            state[S_IPD_BASE][y][x] = (float)I_pd;
+        }
+        const double ipd_base = (double)state[S_IPD_BASE][y][x];
+
         // ---- compute continuous input Vpr_target ----
-        const float Vpr_target = (float)((UT / kappa_fb) * log(I_pd / ipd_min));
+        const float Vpr_target = (float)((UT / kappa_fb) * log(I_pd / ipd_base));
 
         // ---- photoreceptor Zm signal filter (DF-I, 2nd order) ----
         // The filter has DC gain = 1, so at steady state vpr_sig = Vpr_target.
