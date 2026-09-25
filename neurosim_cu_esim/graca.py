@@ -35,6 +35,7 @@ logger = logging.getLogger(__name__)
 
 # Must match the GracaState enum / GRACA_NSTATE in csrc/evsim_graca_kernel.cu.
 GRACA_NSTATE = 23
+_S_IPD_BASE = 22
 
 
 class Events(NamedTuple):
@@ -123,6 +124,7 @@ class GracaDVSSimulator:
     # --- noise / misc ---
     add_noise: bool = False
     stochastic_events: bool = False
+    use_first_frame_as_base: bool = True
     max_events: int | None = None
     seed: int = 0
     device: str | torch.device = "cuda"
@@ -171,6 +173,8 @@ class GracaDVSSimulator:
         self._state = torch.zeros(
             (GRACA_NSTATE, h, w), dtype=torch.float32, device=first_image.device
         )
+        if not self.use_first_frame_as_base:
+            self._state[_S_IPD_BASE] = self.ipd_min
 
     @property
     def is_initialised(self) -> bool:
