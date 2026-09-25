@@ -197,7 +197,6 @@ def evsim_graca_cuda(
     thr_on: float,
     thr_off: float,
     refractory_us: float,
-    dt_us: float,
     add_noise: int,
     stochastic_events: int,
     seed: int,
@@ -229,7 +228,7 @@ def evsim_graca_cuda(
     thr_on, thr_off : float
         Event thresholds at Vsf (volts).
     refractory_us, dt_us : float
-        Refractory period and internal sub-step (microseconds).
+        Refractory period (microseconds).
     add_noise : int
         ``1`` to add shot noise, ``0`` for the deterministic signal model.
     stochastic_events : int
@@ -268,7 +267,6 @@ def evsim_graca_cuda(
         thr_on,
         thr_off,
         refractory_us,
-        dt_us,
         add_noise,
         stochastic_events,
         seed,

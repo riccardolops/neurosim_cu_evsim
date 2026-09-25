@@ -95,7 +95,6 @@ evsim_graca(
     double kappa_fb, double kappa_sf, double VA, double UT,
     double ipd_max, double ipd_min, double intensity_max,
     double thr_on, double thr_off, double refractory_us,
-    double dt_us,
     int64_t add_noise,
     int64_t stochastic_events,
     uint64_t seed,
