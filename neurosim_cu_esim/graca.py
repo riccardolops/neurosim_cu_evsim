@@ -34,7 +34,7 @@ from neurosim_cu_esim._backend import evsim_graca_cuda
 logger = logging.getLogger(__name__)
 
 # Must match the GracaState enum / GRACA_NSTATE in csrc/evsim_graca_kernel.cu.
-GRACA_NSTATE = 22
+GRACA_NSTATE = 23
 
 
 class Events(NamedTuple):
