@@ -98,5 +98,6 @@ evsim_graca(
     int64_t add_noise,
     int64_t stochastic_events,
     uint64_t seed,
-    uint64_t frame_index
+    uint64_t frame_index,
+    int64_t init_steady_state
 );

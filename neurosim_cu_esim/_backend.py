@@ -201,6 +201,7 @@ def evsim_graca_cuda(
     stochastic_events: int,
     seed: int,
     frame_index: int,
+    init_steady_state: int,
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     """Call the Graca & Delbruck large-signal physical pixel kernel for one step.
 
@@ -271,4 +272,5 @@ def evsim_graca_cuda(
         stochastic_events,
         seed,
         frame_index,
+        init_steady_state,
     )
