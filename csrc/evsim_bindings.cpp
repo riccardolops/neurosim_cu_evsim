@@ -77,6 +77,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
         py::arg("add_noise"),
         py::arg("stochastic_events"),
         py::arg("seed"),
-        py::arg("frame_index")
+        py::arg("frame_index"),
+        py::arg("init_steady_state")
     );
 }

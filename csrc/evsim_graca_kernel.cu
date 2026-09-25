@@ -112,6 +112,7 @@ __global__ void evsim_graca_kernel(
     const int stochastic_events,
     const unsigned long long seed,
     const unsigned long long frame_index,
+    const int init_steady_state,
     const uint32_t max_events,
     const uint16_t height,
     const uint16_t width
@@ -228,7 +229,7 @@ __global__ void evsim_graca_kernel(
         const float Vpr_target = (float)((UT / kappa_fb) * log(I_pd / ipd_base));
 
         // ---- Initialize steady state if it's the first frame ----
-        if (frame_index == 0) {
+        if (frame_index == 0 && init_steady_state) {
             u_pr1 = u_pr2 = Vpr_target;
             y_pr1 = y_pr2 = Vpr_target;
             
@@ -405,7 +406,8 @@ evsim_graca(
     const int64_t add_noise,
     const int64_t stochastic_events,
     const uint64_t seed,
-    const uint64_t frame_index
+    const uint64_t frame_index,
+    const int64_t init_steady_state
 ) {
     CHECK_CUDA_CONTIGUOUS_FLOAT(new_image);
     CHECK_CUDA_CONTIGUOUS_FLOAT(state);
@@ -447,6 +449,7 @@ evsim_graca(
             static_cast<int>(stochastic_events),
             static_cast<unsigned long long>(seed),
             static_cast<unsigned long long>(frame_index),
+            static_cast<int>(init_steady_state),
             max_events, height, width
         );
     }));

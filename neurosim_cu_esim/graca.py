@@ -125,6 +125,7 @@ class GracaDVSSimulator:
     add_noise: bool = False
     stochastic_events: bool = False
     use_first_frame_as_base: bool = True
+    init_steady_state: bool = True
     max_events: int | None = None
     seed: int = 0
     device: str | torch.device = "cuda"
@@ -231,6 +232,7 @@ class GracaDVSSimulator:
             int(bool(self.stochastic_events)),
             int(self.seed),
             int(self._frame_index),
+            int(bool(self.init_steady_state)),
         )
 
         self._prev_time = ts
