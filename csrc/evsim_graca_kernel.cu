@@ -227,6 +227,22 @@ __global__ void evsim_graca_kernel(
         // ---- compute continuous input Vpr_target ----
         const float Vpr_target = (float)((UT / kappa_fb) * log(I_pd / ipd_base));
 
+        // ---- Initialize steady state if it's the first frame ----
+        if (frame_index == 0) {
+            u_pr1 = u_pr2 = Vpr_target;
+            y_pr1 = y_pr2 = Vpr_target;
+            
+            float vsfc_steady = Vpr_target * (float)kappa_sf;
+            vprsf = Vpr_target;
+            vsfc  = vsfc_steady;
+            Vsf   = vsfc_steady;
+            Vref  = vsfc_steady;
+            
+            if (use_fpt) {
+                msi_stored = 0.0f; // FPT variance accumulator starts at 0
+            }
+        }
+
         // ---- photoreceptor Zm signal filter (DF-I, 2nd order) ----
         // The filter has DC gain = 1, so at steady state vpr_sig = Vpr_target.
         float vpr_sig = (float)(zb0)*Vpr_target + (float)(zb1)*u_pr1 + (float)(zb2)*u_pr2
