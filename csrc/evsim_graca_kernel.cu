@@ -31,7 +31,7 @@
 #define FULL_MASK 0xffffffff
 
 // Per-pixel: at most 1 event per call (no sub-steps).
-#define GRACA_MAX_EVENTS_PER_PIXEL 1
+#define GRACA_MAX_EVENTS_PER_PIXEL 16
 // Philox counter budget per pixel per call (>= draws/call).
 #define GRACA_DRAWS_PER_FRAME 256
 
@@ -310,9 +310,9 @@ __global__ void evsim_graca_kernel(
             const float dp = vsf_prev - Vref;     // detector value previous step
             int   pol = -1;                        // -1 none, 1 ON, 0 OFF
 
-            // Convert log-contrast threshold to Vsf voltage threshold
-            const float v_thr_on  = (float)(thr_on  * (kappa_sf * UT / kappa_fb));
-            const float v_thr_off = (float)(thr_off * (kappa_sf * UT / kappa_fb));
+            // thr_on / thr_off already arrive in Volts from graca.py
+            const float v_thr_on  = (float)thr_on;
+            const float v_thr_off = (float)thr_off;
 
             if (d >= v_thr_on)         { pol = 1; }
             else if (d <= -v_thr_off)  { pol = 0; }
