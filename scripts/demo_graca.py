@@ -38,7 +38,7 @@ def main():
     sim = GracaDVSSimulator(
         width=args.width, height=args.height,
         add_noise=args.noise,
-        full_well_saturation_threshold=1e-12, dark_current=1e-15,
+        dark_current=1e-15, dt_us=args.dt_us,
         contrast_threshold=0.3, refractory_us=100.0,
         max_events=args.width * args.height * 16, seed=0, device=dev,
     )
@@ -47,7 +47,7 @@ def main():
     tot_on = tot_off = 0
     for i in range(args.frames):
         pos = (i / max(1, args.frames - 1)) * (args.width - 1)
-        # make_bar returns [0.05, 1.0], scale it to physical photocurrent [0, 1e-12]
+        # Synthetic assumed optical currents 50 fA to 1 pA; not calibrated radiometry.
         frame_np = make_bar(args.height, args.width, pos) * 1e-12
         frame = torch.from_numpy(frame_np).to(dev)
         ts = i * args.frame_us

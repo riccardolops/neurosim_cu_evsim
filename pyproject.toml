@@ -1,7 +1,7 @@
 [build-system]
 # torch upper-bound: 2.12 introduced a memory-leak regression in C++ extension
 # Tensor-argument handling that leaks ~1 input-tensor per kernel call.
-requires = ["setuptools>=69", "wheel", "ninja", "torch>=2.0,<2.12"]
+requires = ["setuptools>=69", "wheel", "ninja", "torch>=2.7,<2.12"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -10,7 +10,7 @@ version = "0.1.0"
 description = "CUDA-accelerated frame-differencing event simulator"
 readme = "README.md"
 license = {file = "LICENSE"}
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 authors = [
     {name = "Richeek Das", email = "richeek@seas.upenn.edu"},
 ]
@@ -21,7 +21,6 @@ classifiers = [
     "Operating System :: POSIX :: Linux",
     "Programming Language :: C++",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -31,7 +30,7 @@ classifiers = [
 dependencies = [
     # See build-system note: torch 2.12 leaks per-call input tensors from the
     # C++ extension.
-    "torch>=2.0,<2.12",
+    "torch>=2.7,<2.12",
 ]
 
 [project.urls]

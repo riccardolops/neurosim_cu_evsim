@@ -169,24 +169,37 @@ events = sim(frame_0_255_float.cuda(), timestamp_us)
 
 ## Graca DVS Model (physically-realistic)
 
-A continuous-time physically realistic event simulator based on [Graca & Delbruck, *Towards a physically realistic computationally efficient DVS pixel model*, 2025](https://arxiv.org/abs/2505.07386). 
-This model uses a dynamic linear parameter-varying (LPV) state-space to accurately capture the low-pass behavior of the photoreceptor, asymmetric temporal bandwidths, and voltage noise, resolving artifacts seen in log-contrast models at high frequencies.
+A continuous-time physically realistic event simulator based on [Graca & Delbruck, *Towards a physically realistic computationally efficient DVS pixel model*, 2025](https://arxiv.org/abs/2505.07386).
+This model uses a dynamic linear parameter-varying (LPV) state-space to accurately capture the low-pass behavior of the photoreceptor, asymmetric temporal bandwidths, and voltage noise, resolving artifacts seen in log-contrast models at high frequencies. The physical photoreceptor nodes and source follower advance in bounded trapezoidal substeps. Circuit parameters require calibration for the intended sensor and temperature.
 
-Input is **photocurrent in Amperes** (typically `1e-15` to `1e-12`), not 0-255 or log-intensity. For example, if you have a `[0, 1]` or `[0, 255]` image, you should scale it to the physical photocurrent range:
+Input is **light-generated photocurrent in amperes per pixel, excluding dark current**. The kernel adds `dark_current` once. Do not normalize frames or scale arbitrary 8-bit brightness to a guessed current range. Use a calibrated radiometric conversion.
 
 ```python
 from neurosim_cu_esim import GracaDVSSimulator
-
-sim = GracaDVSSimulator(
-    width=640, height=480,
-    full_well_saturation_threshold=1e-12,
-    dark_current=1e-15,
-    device="cuda",
-)
-# Example: scale a [0, 255] frame to [0, 1e-12] Amperes
-photocurrent = (frame_0_255_float.cuda() / 255.0) * 1e-12
-events = sim(photocurrent, timestamp_us)
+sim = GracaDVSSimulator(width=640, height=480, dark_current=1e-15,
+                       dt_us=10, add_noise=False, device="cuda")
+# photo_A: floating-point tensor containing calibrated optical currents in A
+sim.init(first_photo_A, timestamp_us=0)
+events = sim(next_photo_A, timestamp_us=100)
 ```
+
+Samples define a **linear current trajectory between timestamps**. Internal substeps cannot reconstruct a pulse missing from the rendered samples. Event times are rounded to integer microseconds; use time-step convergence tests for signal timing and shot-noise event rates. Sub-microsecond analog steps are allowed; event timestamps still have 1 us resolution. This endpoint detector and ideal sampled reset during refractory are approximations, not a full change-detector transistor/readout model.
+
+`full_well_saturation_threshold=None` disables the former artificial 1 pA clamp. When explicitly supplied, this legacy-named value is a **total-current validation ceiling**: exceeding it raises rather than clipping. It is not a DVS full-well model. Bright-current extrapolation relative to Ipr emits a diagnostic; absolute sensor validity still requires measured currents, bias settings and temperature.
+
+`contrast_threshold` / `contrast_threshold_off` represent log changes of **optical plus dark** current. The voltage threshold includes finite photoreceptor loop gain and source-follower gain. With default circuit parameters and contrast .2, it is approximately 4.985 mV at Vsf.
+
+`add_noise=True` enables resolved photodiode, photoreceptor and source-follower noise with the paper's one-sided 4qI PSD convention. `stochastic_events=True` now raises explicitly: the former shortcut did not implement the paper's validated OU first-passage process or crossing times. No stochastic acceleration claim is made.
+
+`init_steady_state` initializes the deterministic mean, not stationary random
+noise. Supply a laser-off background pre-roll and check noise stationarity before
+measuring background-event rates. At 1 fA the supplied PR has a slow timescale
+near 0.1 s, so a 10 ms startup is insufficient. A first frame with the laser
+already on defines the initial state and contains no observable onset.
+
+The state tensor is now float64 (23 planes), with signal Vpr/Vpd at indices 2/3 and total Vsf at 4. Saved states from the old implementation are incompatible; reset simulations. Buffer overflow raises and invalidates Python state; replay from the beginning with a larger buffer. Returned event tensors own their data. Rebuild the CUDA extension after this revision (the binding adds `dt_us`).
+
+Verification: `python -m pytest tests/test_graca_contract.py` exercises Python contracts on CPU; `python -m pytest tests/test_graca.py` requires a built extension and CUDA. The audit bundle separately includes compiled production-helper comparisons against an independent SciPy circuit reference. CPU checks do not establish CUDA execution correctness or real-device calibration.
 
 ## API reference
 

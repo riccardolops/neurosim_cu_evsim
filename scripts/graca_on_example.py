@@ -3,6 +3,7 @@ textured patch from benchmark_esim.py) and save the full event stream.
 
 Reuses precompute_frame_bank() from benchmark_esim so the input is byte-for-byte
 the same moving-texture-on-white sequence the repo uses for its example GIF.
+The 1 pA scale is a synthetic assumption, not a radiometric calibration.
 """
 import os
 import sys
@@ -38,7 +39,7 @@ def main():
     )
     sim = GracaDVSSimulator(
         width=args.width, height=args.height, add_noise=args.noise,
-        contrast_threshold=0.25,
+        contrast_threshold=0.25, dt_us=args.dt_us,
         max_events=args.width * args.height * 16, seed=0, device="cuda",
     )
 

@@ -1,67 +1,55 @@
-"""Single-pixel parity check for the CUDA Graca model vs the Python reference.
+"""Deterministic CUDA parity against an independent NumPy nodal circuit.
 
-Replays the paper Fig. 5 pulse (10 fA -> 1 pA -> 10 fA) on a small array at the
-same 10 us grid as the single-pixel reference (so n_sub = 1 per frame, i.e. the
-CUDA kernel performs exactly one IIR step per forward — a 1:1 comparison), reads
-the internal Vpr/Vsf out of sim.state each step, and compares to ref_trace.npz
-(produced by model_final.simulate_full, float64).
-
-Run on a CUDA machine:  python scripts/validate_graca.py [ref_trace.npz]
+Run after building the extension: python scripts/validate_graca.py
+Requires numpy and CUDA PyTorch. Uses physical currents; no fitted trace file or
+noisy realization is compared against a deterministic trajectory.
 """
-import sys
 import numpy as np
 import torch
-
 from neurosim_cu_esim import GracaDVSSimulator
 
-S_VPR, S_VSF, S_VPRSF = 0, 3, 4  # indices into the packed state (see kernel GracaState)
 
-ref_path = sys.argv[1] if len(sys.argv) > 1 else "ref_trace.npz"
-ref = np.load(ref_path)
-t, Ipd, Vpr_ref, Vsf_ref = ref["t"], ref["Ipd"], ref["Vpr"], ref["Vsf"]
-N = len(t)
+def main():
+    if not torch.cuda.is_available():
+        raise SystemExit('CUDA unavailable: no GPU parity result was produced.')
+    sim = GracaDVSSimulator(width=2,height=2,dt_us=10,add_noise=False,max_events=1024)
+    times = np.arange(0, 80001, 10, dtype=np.int64)
+    photo = np.full(times.shape,9e-15)  # +1 fA dark = paper 10 fA total baseline
+    photo[(times>=10000)&(times<11000)] = 999e-15  # 1 pA total
+    cpd,cfb,cpr,csf=sim.Cpd,sim.Cfb,sim.Cpr,sim.Csf
+    mass=np.array([[cpd+cfb,-cfb,0],[-cfb,cpr+cfb,0],[0,0,csf]])
+    state=np.zeros(3)
+    gain=sim.UT/sim.kappa_fb*sim.loop_gain_fraction
+    previous_target=0.
+    reference=np.zeros((len(times),3))
+    observed=np.zeros((len(times),3))
+    counts=[0,0]
+    for index,(time,current) in enumerate(zip(times,photo)):
+        events=sim(torch.full((2,2),float(current),dtype=torch.float64,device='cuda'),int(time))
+        if index:
+            total=current+sim.dark_current
+            gs=total/sim.UT;gm=sim.kappa_fb*gs
+            ga=sim.kappa_fb*sim.Ipr/sim.UT;rout=sim.VA/(2*sim.Ipr)
+            gsf=sim.Isf/sim.UT
+            conductance=np.array([[gs,-gm,0],[ga,1/rout,0],[0,-sim.kappa_sf*gsf,gsf]])
+            target=gain*np.log(total/(photo[0]+sim.dark_current))
+            zmdc=sim.loop_gain_fraction/gm
+            forcing=np.array([-(previous_target+target)/(2*zmdc),0,0])
+            dt=1e-5
+            state=np.linalg.solve(mass+dt/2*conductance,(mass-dt/2*conductance)@state+dt*forcing)
+            previous_target=target
+            reference[index]=state
+        observed[index]=[float(sim.state[k,0,0]) for k in (3,2,4)]
+        if events is not None:
+            counts[0]+=int((events.p==0).sum())
+            counts[1]+=int((events.p==1).sum())
+    error=np.max(np.abs(observed-reference),axis=0)
+    print('max absolute voltage errors [Vpd,Vpr,Vsf]:',error)
+    print('total events [OFF,ON]:',counts)
+    assert np.max(error)<2e-9, error
+    assert all(x>0 for x in counts)
+    print('CUDA deterministic parity PASS (not a silicon/noise calibration).')
 
-FULL_WELL_SATURATION_THRESHOLD = 1e-12
-L = Ipd                       # 10 fA -> 10e-15,  1 pA -> 1e-12
 
-H, W = 4, 4
-sim = GracaDVSSimulator(
-    width=W, height=H,
-    Cpd=71.54e-15, Cfb=0.87e-15, Cpr=23.72e-15, Csf=581e-15, Ipr=3e-9, Isf=10e-12,
-    full_well_saturation_threshold=FULL_WELL_SATURATION_THRESHOLD, dark_current=1e-15,
-    contrast_threshold=0.3, refractory_us=100.0,
-    add_noise=True, device="cuda",
-)
-
-Vpr_cuda = np.zeros(N)
-Vsf_cuda = np.zeros(N)
-n_on = n_off = 0
-for n in range(N):
-    frame = torch.full((H, W), float(L[n]), device="cuda", dtype=torch.float32)
-    ts = int(round(t[n] * 1e6))         # microseconds (0, 10, 20, ...)
-    if n == 0:
-        sim.init(frame)
-        sim._prev_time = ts
-        continue
-    ev = sim.forward(frame, ts)
-    if ev is not None:
-        n_on += int((ev.p == 1).sum().item())
-        n_off += int((ev.p == 0).sum().item())
-    st = sim.state
-    Vpr_cuda[n] = float(st[S_VPRSF, 0, 0].item())
-    Vsf_cuda[n] = float(st[S_VSF, 0, 0].item())
-
-rmse_pr = np.sqrt(np.mean((Vpr_cuda - Vpr_ref) ** 2))
-rmse_sf = np.sqrt(np.mean((Vsf_cuda - Vsf_ref) ** 2))
-rel_pr = rmse_pr / Vpr_ref.max()
-rel_sf = rmse_sf / Vsf_ref.max()
-print(f"Vpr: peak ref={Vpr_ref.max():.5f}  cuda={Vpr_cuda.max():.5f}  "
-      f"RMSE={rmse_pr*1e3:.4f} mV ({rel_pr*100:.3f}% of peak)")
-print(f"Vsf: peak ref={Vsf_ref.max():.5f}  cuda={Vsf_cuda.max():.5f}  "
-      f"RMSE={rmse_sf*1e3:.4f} mV ({rel_sf*100:.3f}% of peak)")
-print(f"events on this pixel-stream: ON={n_on//(H*W)} OFF={n_off//(H*W)} (per pixel)")
-np.savez("cuda_trace.npz", t=t, Vpr=Vpr_cuda, Vsf=Vsf_cuda)
-print("saved cuda_trace.npz")
-
-ok = rel_pr < 0.03 and rel_sf < 0.03
-print("PARITY", "OK" if ok else "CHECK (>3% of peak)")
+if __name__ == '__main__':
+    main()

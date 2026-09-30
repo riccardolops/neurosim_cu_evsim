@@ -58,9 +58,9 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
         m.def(
         "evsim_graca",
         &evsim_graca,
-        "Graca & Delbruck (2025) physically-realistic large-signal DVS pixel "
-        "model: per-pixel 2nd-order photoreceptor + 1st-order source-follower "
-        "advanced in sub-steps, optional shot noise, v2e change detector (CUDA)",
+        "Graca & Delbruck (2025) LPV DVS circuit approximation: optical "
+        "photocurrent in amperes, physical-node substeps, optional shot noise "
+        "and a sampled reset/threshold detector (CUDA)",
         py::arg("new_image"),
         py::arg("new_time"),
         py::arg("prev_time"),
@@ -78,6 +78,8 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
         py::arg("stochastic_events"),
         py::arg("seed"),
         py::arg("frame_index"),
-        py::arg("init_steady_state")
+        py::arg("init_steady_state"),
+        py::arg("dt_us") = 10.0
     );
 }
+
